@@ -4,50 +4,71 @@
 #include <string.h>
 #include <stdlib.h>
 #include "mbedtls/sha256.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/aes.h"
 
 
-#define BUFFER_SIZE 4096
-#define HASH_SIZE 32
+
+mbedtls_aes_context aes;
+mbedtls_aes_context aes2;
+
+
+
+#define INPUT_LENGTH 16
+
+
+unsigned char key[] = {0x65, 0x65, 0x65, 0x65, 0x65, 0x65,
+                       0x65, 0x65, 0x65, 0x65, 0x65, 0x65,
+                       0x65, 0x65, 0x65, 0x65, 0x65, 0x65,
+                       0x65, 0x65, 0x65, 0x65, 0x65, 0x65,
+                       0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65, 0x65};
+
+unsigned char input[INPUT_LENGTH] = {1};
+
+static void cbc()
+{
+    mbedtls_aes_init(&aes);
+    mbedtls_aes_init(&aes2);
+    mbedtls_aes_setkey_enc(&aes, key, 256);
+    mbedtls_aes_setkey_dec(&aes2, key, 256);
+
+    for(int k=0;k<16;k++){
+        input[k]=k;
+    }
+
+    unsigned char iv[] = {0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+    unsigned char iv1[] = {0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+    unsigned char encrypt_output[INPUT_LENGTH] = {0};
+    unsigned char decrypt_output[INPUT_LENGTH] = {0};
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, INPUT_LENGTH, iv, input, encrypt_output);
+    mbedtls_aes_crypt_cbc(&aes2, MBEDTLS_AES_DECRYPT, INPUT_LENGTH, iv1, encrypt_output, decrypt_output);
+
+    for(int k=0;k<16;k++){
+        printf( "%d\n", decrypt_output[k]);
+    }
+
+
+}
+
+
+
+
+
+
+
+
 
 
 
 int main(void) {
     int ret;
 
-    // Initialize hash
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    mbedtls_sha256_starts_ret(&ctx, /*is224=*/0);
 
-    // Open file
-    FILE *fp = fopen("/home/vaca/esp32YUlin/mbedtls_test/fuck", "r");
-    if (fp == NULL) {
-        ret = EXIT_FAILURE;
-        goto exit;
-    }
+    cbc();
 
-    // Read file in chunks of size BUFFER_SIZE
-    uint8_t buffer[BUFFER_SIZE];
-    size_t read;
-    while ((read = fread(buffer, 1, BUFFER_SIZE, fp)) > 0) {
-        mbedtls_sha256_update_ret(&ctx, buffer, read);
-    }
 
-    // Calculate final hash sum
-    uint8_t hash[HASH_SIZE];
-    mbedtls_sha256_finish_ret(&ctx, hash);
 
-    // Simple debug printing. Use MBEDTLS_SSL_DEBUG_BUF in a real program.
-    for (size_t i = 0; i < HASH_SIZE; i++) {
-        printf("%02x", hash[i]);
-    }
-    printf("\n");
 
-    // Cleanup
-    fclose(fp);
-    ret = EXIT_SUCCESS;
-
-    exit:
-    mbedtls_sha256_free(&ctx);
     return ret;
 }
